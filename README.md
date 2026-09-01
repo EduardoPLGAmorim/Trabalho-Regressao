@@ -115,6 +115,8 @@ Além disso, por se tratar de um estudo observacional, as associações identifi
 - **lmtest**
 - **nortest**
 
+## Arquivos 
+
 | Arquivo                    | Descrição                                               |
 | -------------------------- | ------------------------------------------------------- |
 | `TF.Rmd`                   | Código em R e desenvolvimento da análise                |
