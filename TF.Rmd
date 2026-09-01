@@ -1,0 +1,432 @@
+---
+title: "O Abismo Estrutural da Saúde: Identificando os Preditores da Expectativa de Vida entre Nações"
+author:
+  - "Eduardo Penna Lima Guedes de Amorim RA277141"
+  - "Matheus Pierri de Oliveira RA277209"
+  - "Wan Tai Cheuk RA277240"
+header-includes:
+  - \usepackage[brazil]{babel}
+  - \usepackage{float}
+  - \usepackage{booktabs}
+output:
+  bookdown::pdf_document2:
+    latex_engine: xelatex
+    number_sections: true
+    toc: TRUE
+bibliography: referencia.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+options(scipen=9999)
+```
+
+```{r}
+# inclua os pacotes que for usar aqui, altere como preferir
+library(tidymodels)
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+```
+
+\newpage
+
+# Introdução {#sec-intro}
+
+A expectativa de vida ao nascer é um dos indicadores mais abrangentes do estado de saúde e desenvolvimento de uma população. Ela sintetiza, em um único número, o resultado acumulado de condições sanitárias, acesso a serviços de saúde, nível educacional, situação econômica e políticas públicas de um país. Compreender quais fatores mais influenciam esse indicador é fundamental para orientar decisões de governos, organismos internacionais e pesquisadores que buscam reduzir desigualdades globais em saúde. Apesar dos avanços observados nas últimas décadas, as disparidades entre países desenvolvidos e em desenvolvimento permanecem expressivas. Em 2015, enquanto países de alta renda apresentavam expectativas de vida superiores a 80 anos, diversas nações de baixa renda ainda registravam médias abaixo de 60 anos. Investigar se os determinantes da longevidade atuam de forma diferente nesses dois grupos de países é uma questão relevante tanto do ponto de vista científico quanto para a formulação de políticas públicas. O objetivo principal deste estudo é identificar e quantificar os fatores associados à expectativa de vida ao nascer, com base em dados de 193 países coletados entre 2000 e 2015 pela Organização Mundial da Saúde (OMS). De forma mais específica, busca-se responder às seguintes perguntas:
+
+Quais indicadores de saúde, socioeconômicos e demográficos estão mais fortemente associados à expectativa de vida? O efeito desses fatores sobre a expectativa de vida difere entre países desenvolvidos e países em desenvolvimento? É possível construir um modelo de regressão linear que estime adequadamente a expectativa de vida a partir dessas variáveis?
+
+O restante do relatório está organizado da seguinte forma. Na Seção \ref{sec-banco}, apresenta-se o conjunto de dados utilizado, com descrição das variáveis e dos critérios de filtragem adotados. Na Seção de Análise Exploratória, examinam-se as relações entre os preditores e a variável resposta por meio de gráficos e estatísticas descritivas. A seguir, na seção de Modelo Proposto, descreve-se o modelo de regressão linear ajustado, com interpretação dos coeficientes e intervalos de confiança. Por fim, a Discussão retoma os objetivos propostos à luz dos resultados obtidos, e o Apêndice reúne os diagnósticos do modelo e análises de suporte
+
+# Banco de dados {#sec-banco}
+
+```{r}
+dados <- read.csv("Life Expectancy Data.csv")
+```
+
+```{r}
+View(dados)
+```
+
+Os dados utilizados neste estudo foram obtidos a partir do repositório público disponibilizado no Kaggle [@kumarajarshi2018], compilado com base em informações coletadas pela Organização Mundial da Saúde (OMS) e pelo Banco Mundial. O conjunto abrange 193 países ao longo do período de 2000 a 2015, totalizando 2.938 observações e 22 variáveis. A variável resposta é Life.expectancy, que registra a expectativa de vida ao nascer em anos para cada país e ano.
+
+As variáveis preditoras cobrem quatro grandes dimensões. No domínio da mortalidade, estão disponíveis a mortalidade adulta por mil habitantes (Adult.Mortality), o número de mortes infantis por mil habitantes (infant.deaths) e o número de mortes em crianças abaixo de cinco anos por mil habitantes (under.five.deaths). No campo das doenças e imunização, o conjunto inclui a incidência de HIV/AIDS por 100 habitantes na faixa etária de 0 a 4 anos (HIV.AIDS), o número de casos de sarampo reportados por mil habitantes (Measles), além das coberturas vacinais contra Hepatite B (Hepatitis.B), Pólio (Polio) e Difteria (Diphtheria), todas expressas em percentual da população de um ano de idade. As variáveis socioeconômicas compreendem o Produto Interno Bruto per capita em dólares americanos (GDP), os gastos totais do governo em saúde como percentual do PIB (Total.expenditure), o consumo médio de álcool per capita em litros de álcool puro (Alcohol), o Índice de Composição de Recursos de Renda (Income.composition.of.resources) e a média de anos de escolaridade (Schooling). Por fim, indicadores nutricionais e demográficos incluem o IMC médio da população (BMI), a prevalência de magreza em adolescentes de 10 a 19 anos (thinness..1.19.years) e de crianças de 5 a 9 anos (thinness.5.9.years), além da população total do país (Population). A variável categórica Status classifica cada país como Developed (desenvolvido) ou Developing (em desenvolvimento).
+
+Dado o volume de variáveis e a presença de valores ausentes em parte delas, serão realizadas decisões de filtragem e seleção descritas na seção de Análise Exploratória. As análises foram conduzidas em R [@rcoreteam], com uso dos pacotes tidyverse [@tidyverse] e tidymodels [@tidymodels].
+
+# Análise exploratória
+
+## Visão geral e variável resposta
+
+A análise exploratória tem como objetivo compreender a estrutura dos dados e identificar padrões iniciais que orientem a construção do modelo de regressão. Antes de examinar as relações entre preditores e resposta, é necessário entender a distribuição da variável resposta e avaliar a qualidade geral do conjunto de dados, em particular a presença de valores ausentes e a necessidade de exclusões.
+
+```{r, echo=FALSE, results='hide'}
+glimpse(dados)
+```
+
+A Tabela \@ref(tab:tabmiss) apresenta o percentual de valores ausentes por variável. Observa-se que BMI concentra aproximadamente 50% de missings, Population cerca de 22% e Hepatitis.B cerca de 19%. Dado que a imputação dessas variáveis introduziria incerteza considerável, especialmente para BMI, onde metade dos valores seria estimada, optou-se por excluí-las do conjunto de preditores candidatos. As demais variáveis com missings em menor proporção terão suas observações incompletas removidas, resultando em uma base final de análise descrita ao longo desta seção. Além dos missings, observações correspondentes ao ano de 2015 apresentam cobertura incompleta em diversas variáveis para vários países, o que é esperado dado o momento de compilação dos dados. Por essa razão, optou-se por restringir a análise ao período de 2000 a 2014, garantindo maior comparabilidade entre os países.
+
+A Figura \@ref(fig:figresp) apresenta a distribuição da expectativa de vida ao nascer na base após os filtros aplicados. A distribuição apresenta assimetria negativa moderada, com a maior parte dos países concentrada entre 65 e 80 anos e uma cauda à esquerda formada por países com expectativas de vida mais baixas, predominantemente nações em desenvolvimento. A média global é de aproximadamente 69 anos, com desvio padrão de cerca de 9 anos, indicando variabilidade expressiva entre os países da amostra.
+
+```{r tabmiss}
+# Tabela de missings
+tab_miss <- dados %>%
+  summarise(across(everything(), ~ mean(is.na(.)) * 100)) %>%
+  pivot_longer(everything(), names_to = "Variável", values_to = "Missings (%)") %>%
+  filter(`Missings (%)` > 0) %>%
+  arrange(desc(`Missings (%)`)) %>%
+  mutate(`Missings (%)` = round(`Missings (%)`, 1))
+
+kable(tab_miss, booktabs = TRUE,
+      caption = "Percentual de valores ausentes por variável. 
+      Variáveis com proporção elevada de missings (BMI, Population 
+      e Hepatitis.B) foram excluídas do conjunto de preditores.")%>%
+    kable_styling(
+    latex_options = "hold_position"
+    )
+```
+
+```{r figresp, fig.pos="H", fig.cap = "Distribuição da expectativa de vida ao nascer (em anos) após aplicação dos filtros. A linha tracejada vermelha indica a média global, de aproximadamente 69 anos. A distribuição apresenta assimetria negativa, com cauda à esquerda composta predominantemente por países em desenvolvimento com baixa longevidade.",fig.align='center',fig.width=4,fig.height=3}
+# --- Filtros e exclusões ---
+
+dados_filtrados <- dados %>%
+  filter(Year != 2015) %>%                        # remove ano incompleto
+  select(-BMI, -Population, -Hepatitis.B) %>%     # remove variáveis com muitos missings
+  drop_na()                                        # remove obs com missings restantes
+
+# --- Distribuição da variável resposta ---
+
+fig_resp <- ggplot(dados_filtrados, aes(x = Life.expectancy)) +
+  geom_histogram(binwidth = 2, fill = "steelblue", color = "white") +
+  geom_vline(xintercept = mean(dados_filtrados$Life.expectancy),
+             linetype = "dashed", color = "darkred") +
+  labs(x = "Expectativa de vida (anos)",
+       y = "Frequência") +
+  theme_minimal()
+
+fig_resp
+```
+
+## Variáveis de mortalidade e doença
+
+Com a base preparada, investiga-se a associação das variáveis relacionadas à mortalidade e à incidência de doenças com a expectativa de vida. A pergunta central aqui é: países com maiores taxas de mortalidade e maior incidência de doenças apresentam menor expectativa de vida, e em que magnitude?
+
+A Figura \@ref(fig:figmort) apresenta a relação entre mortalidade adulta e expectativa de vida. Observa-se uma associação negativa forte e aproximadamente linear: países com maiores taxas de mortalidade adulta tendem a apresentar expectativas de vida consideravelmente menores. Essa variável é, isoladamente, uma das mais informativas do conjunto.
+
+A Figura \@ref(fig:fighiv) ilustra a relação entre a incidência de HIV/AIDS e a expectativa de vida. A associação também é negativa e bastante pronunciada, porém com forte concentração de observações próximas a zero a grande maioria dos países apresenta incidência muito baixa, enquanto um pequeno grupo, predominantemente de países africanos em desenvolvimento, concentra valores elevados e expectativas de vida muito reduzidas. Esse comportamento sugere a aplicação de uma transformação logarítmica nessa variável para estabilizar a escala antes da modelagem.
+
+As variáveis **`infant.deaths`** e **`under.five.deaths`** apresentaram correlação de 0,997 na base original, caracterizando multicolinearidade quase perfeita, o que justifica a exclusão de **`under.five.deaths`**. Já **`Polio`** e **`Diphtheria`** apresentaram correlação de 0,681 moderada, porém suficiente para optar por manter apenas **`Diphtheria`**, reduzindo a dimensionalidade sem perda relevante de informação.
+
+```{r, echo=FALSE,  results='hide'}
+# --- Verificação de colinearidade entre mortes infantis ---
+cor(dados_filtrados$infant.deaths, dados_filtrados$under.five.deaths)
+
+# --- Verificação de colinearidade entre vacinas ---
+cor(dados_filtrados$Polio, dados_filtrados$Diphtheria)
+
+# --- Descartar variáveis após verificação ---
+dados_filtrados <- dados_filtrados %>%
+  select(-under.five.deaths, -Polio, -Measles)
+
+# --- Transformação logarítmica do HIV/AIDS ---
+dados_filtrados <- dados_filtrados %>%
+  mutate(log_HIV = log1p(HIV.AIDS))
+```
+
+```{r fighiv,fig.cap = "Relação entre incidência de HIV/AIDS e expectativa de vida ao nascer. A forte concentração de observações próximas a zero e a presença de valores extremos motivam a aplicação de transformação logarítmica nessa variável antes da modelagem.",fig.align='center',fig.width=4,fig.height=3,  fig.pos="H"}
+# --- Figura: HIV/AIDS vs expectativa de vida ---
+
+fig_hiv <- ggplot(dados_filtrados, aes(x = HIV.AIDS, y = Life.expectancy)) +
+  geom_point(alpha = 0.3, color = "steelblue") +
+  geom_smooth(method = "lm", se = FALSE, color = "darkred") +
+  labs(x = "Incidência de HIV/AIDS (por 100 habitantes, faixa 0-4 anos)",
+       y = "Expectativa de vida (anos)") +
+  theme_minimal()
+
+fig_hiv
+```
+
+```{r figmort, fig.cap = "Relação entre mortalidade adulta (por mil habitantes) e expectativa de vida ao nascer. A linha vermelha representa o ajuste linear simples. Observa-se associação negativa forte, indicando que países com maiores taxas de mortalidade adulta tendem a apresentar menor longevidade.",fig.align='center',fig.width=4,fig.height=3,  fig.pos="H"}
+# --- Figura: mortalidade adulta vs expectativa de vida ---
+
+fig_mort <- ggplot(dados_filtrados, aes(x = Adult.Mortality, y = Life.expectancy)) +
+  geom_point(alpha = 0.3, color = "steelblue") +
+  geom_smooth(method = "lm", se = FALSE, color = "darkred") +
+  labs(x = "Mortalidade adulta (por mil habitantes)",
+       y = "Expectativa de vida (anos)") +
+  theme_minimal()
+
+fig_mort
+```
+
+## Variáveis socioeconômicas e correlação final
+
+A segunda dimensão explorada compreende os indicadores socioeconômicos. A pergunta que orienta esta análise é: países com maior desenvolvimento econômico e educacional apresentam maior expectativa de vida, e qual desses fatores tem associação mais expressiva com a resposta?
+
+A Figura \@ref(fig:figschool) mostra que a escolaridade média da população apresenta associação positiva forte e aproximadamente linear com a expectativa de vida, sendo um dos preditores mais promissores do conjunto.
+
+Já a Figura \@ref(fig:figgdp) revela que o PIB per capita, em sua escala original, apresenta distribuição extremamente assimétrica, com poucos países de renda muito alta distorcendo a relação. Após a transformação logarítmica, a associação com a expectativa de vida torna-se muito mais linear e adequada para a modelagem.
+
+O índice de composição de recursos de renda (**`Income.composition.of.resources`**) apresentou correlação elevada tanto com **`Schooling`** (r \> 0,80) quanto com o log do PIB (r \> 0,70), sinalizando potencial multicolinearidade. Sua inclusão simultânea com essas variáveis será avaliada com cautela na etapa de modelagem. As variáveis **`Total.expenditure`** e **`Alcohol`** apresentaram associações fracas e inconsistentes com a resposta e serão descartadas.
+
+A Figura \@ref(fig:figcor) apresenta a matriz de correlação entre as variáveis que permanecerão como candidatas ao modelo após todas as decisões tomadas nesta seção. De forma geral, confirmam-se as associações esperadas: mortalidade adulta, HIV/AIDS e magreza correlacionam-se negativamente com a resposta, enquanto escolaridade, log do PIB e cobertura vacinal correlacionam-se positivamente.
+
+```{r figschool,fig.cap = "Relação entre escolaridade média (em anos) e expectativa de vida ao nascer. A associação positiva e aproximadamente linear sugere que países com maior nível educacional tendem a apresentar maior longevidade.",fig.align='center',fig.width=4,fig.height=3, fig.pos="H"}
+# --- Figura: escolaridade vs expectativa de vida ---
+
+fig_school <- ggplot(dados_filtrados, aes(x = Schooling, y = Life.expectancy)) +
+  geom_point(alpha = 0.3, color = "steelblue") +
+  geom_smooth(method = "lm", se = FALSE, color = "darkred") +
+  labs(x = "Escolaridade média (anos)",
+       y = "Expectativa de vida (anos)") +
+  theme_minimal()
+
+fig_school
+```
+
+```{r figgdp,fig.cap = "Relação entre o logaritmo do PIB per capita e a expectativa de vida ao nascer. A transformação logarítmica estabiliza a escala do PIB e evidencia uma associação positiva mais linear com a resposta.",fig.align='center',fig.width=4,fig.height=3, fig.pos="H"}
+# --- Transformação log do PIB e figura ---
+
+dados_filtrados <- dados_filtrados %>%
+  mutate(log_GDP = log(GDP))
+
+fig_gdp <- ggplot(dados_filtrados, aes(x = log_GDP, y = Life.expectancy)) +
+  geom_point(alpha = 0.3, color = "steelblue") +
+  geom_smooth(method = "lm", se = FALSE, color = "darkred") +
+  labs(x = "Log do PIB per capita (US$)",
+       y = "Expectativa de vida (anos)") +
+  theme_minimal()
+
+fig_gdp
+```
+
+```{r}
+# --- Descartar variáveis fracas ---
+
+dados_filtrados <- dados_filtrados %>%
+  select(-Total.expenditure, -Alcohol, -HIV.AIDS, -GDP)
+
+# HIV.AIDS e GDP substituídos pelas versões transformadas (log_HIV, log_GDP)
+```
+
+```{r figcor,fig.cap = "Matriz de correlação entre as variáveis candidatas ao modelo após as decisões de pré-processamento. Valores próximos de 1 ou −1 indicam associação linear forte. Pares com correlação elevada entre preditores sinalizam potencial multicolinearidade a ser monitorada na modelagem.",fig.align='center',fig.width=5,fig.height=4, fig.pos="H"}
+# --- Matriz de correlação final ---
+
+library(ggcorrplot)
+library(tidyverse)
+
+# 1. Selecionar e JÁ RENOMEAR as variáveis para nomes limpos (em português)
+vars_cor <- dados_filtrados %>%
+  select(
+    `Expectativa de Vida` = Life.expectancy,
+    `Mortalidade Adulta`  = Adult.Mortality,
+    `Mortes Infantis`     = infant.deaths,
+    `Log(HIV/AIDS)`       = log_HIV,
+    `Difteria`            = Diphtheria,
+    `Log(PIB)`            = log_GDP,
+    `Escolaridade`        = Schooling,
+    `Índice de Renda`     = Income.composition.of.resources,
+    `Magreza (1-19 anos)` = thinness..1.19.years,
+    `Magreza (5-9 anos)`  = thinness.5.9.years
+  ) %>%
+  cor(use = "complete.obs")
+
+# 2. Gerar o gráfico com ajustes estéticos de limpeza
+fig_cor <- ggcorrplot(vars_cor, 
+                      lab = TRUE, 
+                      lab_size = 3, 
+                      type = "lower", 
+                      outline.color = "white") +
+  labs(x = NULL, y = NULL) + # Remove os títulos "Var1" e "Var2"
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1), # Inclina o texto do eixo X
+    panel.grid.major = element_blank(), # Remove linhas de grade residuais do fundo
+    panel.grid.minor = element_blank()
+  )
+
+fig_cor
+```
+
+\newpage
+
+# Modelo Proposto
+
+## Seleção do modelo
+
+Com base nas decisões tomadas na análise exploratória, o conjunto de preditores candidatos ao modelo é composto por: **`Adult.Mortality`**, **`infant.deaths`**, **`log_HIV`**, **`Diphtheria`**, **`log_GDP`**, **`Schooling`**, **`Income.composition.of.resources`**, **`thinness.1.19.years`**, **`thinness.5.9.years`** e **`Status`**. Como ponto de partida, ajustou-se um modelo com todos os preditores candidatos e, em seguida, aplicou-se seleção por critério AIC com o procedimento stepwise bidirecional, que avalia tanto a inclusão quanto a exclusão de variáveis a cada passo. O modelo final retido foi aquele com menor AIC, garantindo equilíbrio entre qualidade de ajuste e parcimônia.
+
+```{r, echo=FALSE, results='hide'}
+# --- Modelo completo ---
+modelo_completo <- lm(Life.expectancy ~ Adult.Mortality + infant.deaths +
+                        log_HIV + Diphtheria + log_GDP + Schooling +
+                        Income.composition.of.resources +
+                        thinness..1.19.years + thinness.5.9.years +
+                        Status,
+                      data = dados_filtrados)
+
+# --- Seleção stepwise por AIC ---
+library(MASS)
+modelo_step <- stepAIC(modelo_completo, direction = "both", trace = FALSE)
+
+# --- Resumo do modelo selecionado ---
+summary(modelo_step)
+```
+
+## Modelo final
+
+O procedimento de seleção resultou no modelo apresentado na Tabela \@ref(tab:tabm). As variáveis retidas foram **`Adult.Mortality`**, **`log_HIV`**, **`Diphtheria`**, **`Schooling`**, **`Income.composition.of.resources`** e **`Status`**. As variáveis **`infant.deaths`**, **`log_GDP`**, **`thinness.1.19.years`** e **`thinness.5.9.years`** foram removidas por não contribuírem significativamente para a redução do AIC. O modelo pode ser escrito formalmente como:
+
+$$\begin{aligned}
+Ê = \beta_0 &+ \beta_1 \text{Adult.Mortality} + \beta_2 \log(\text{HIV.AIDS} + 1) + \beta_3 \text{Diphtheria} \\
+&+ \beta_4 \text{Schooling} + \beta_5 \text{Income.composition} + \beta_6 \mathbb{1}_{[\text{Status} = \text{Developing}]}
+\end{aligned}$$
+
+O modelo ajustado apresentou coeficiente de determinação $\mathbf{R^2}$ de aproximadamente 0,86, indicando que cerca de 84% da variabilidade na expectativa de vida é explicada pelos preditorest incluídos.
+
+```{r tabm}
+tab_modelo <- data.frame(
+  Variavel   = names(coef(modelo_step)),
+  Estimativa = round(coef(modelo_step), 4),
+  IC2.5      = round(confint(modelo_step)[, 1], 4),
+  IC97.5     = round(confint(modelo_step)[, 2], 4)
+)
+
+kbl(tab_modelo,
+    col.names = c("Variável", "Estimativa", "IC 2,5\\%", "IC 97,5\\%"),
+    booktabs  = TRUE,
+    align     = c("l", "r", "r", "r"),
+    caption   = "Estimativas dos coeficientes do modelo final com intervalos de confiança de 95\\%. Todas as variáveis retidas apresentaram efeito estatisticamente significativo ao nível de 5\\%.",
+    linesep   = "") |>
+  kable_styling(
+    latex_options = c("HOLD_position"),  # H maiúsculo = força posição absoluta
+    full_width    = FALSE,
+    position      = "center"
+  )
+```
+
+## Interpretação dos parâmetros
+
+A Tabela \@ref(tab:tabm) apresenta as estimativas dos coeficientes com seus respectivos intervalos de confiança de 95%. A interpretação dos principais parâmetros é a seguinte.
+
+O coeficiente associado à mortalidade adulta indica que, mantendo os demais fatores constantes, cada aumento de uma unidade na taxa de mortalidade adulta por mil habitantes está associado a uma redução de 0,012 anos na expectativa de vida (**IC 95%: −0,0136 a −0,0105**). Embora o valor pontual pareça pequeno, é importante lembrar que essa taxa varia amplamente entre países — uma diferença de 500 pontos entre dois países, por exemplo, implica uma diferença estimada de 6 anos na expectativa de vida.
+
+O coeficiente de **`log_HIV`** indica que um aumento de uma unidade no logaritmo da incidência de HIV/AIDS está associado a uma redução de 4,98 anos na expectativa de vida (IC 95%: −5,23 a −4,74), mantendo os demais fatores constantes. Por estar na escala logarítmica, esse efeito é particularmente expressivo em países com alta incidência, onde pequenos aumentos absolutos na incidência correspondem a aumentos proporcionalmente menores no log, mas ainda assim impõem penalizações severas à longevidade média da população.
+
+\
+A cobertura vacinal contra difteria apresentou efeito positivo e estatisticamente significativo: cada ponto percentual adicional na cobertura está associado a um aumento de 0,029 anos na expectativa de vida (IC 95%: 0,022 a 0,036). Embora o efeito unitário seja pequeno, diferenças de 50 pontos percentuais na cobertura vacinal ,comuns entre países desenvolvidos e em desenvolvimento, correspondem a uma diferença estimada de aproximadamente 1,4 anos na expectativa de vida.
+
+O logaritmo do PIB per capita apresentou efeito positivo de 0,504 anos por unidade de log (IC 95%: 0,402 a 0,606). Isso significa que um aumento de 10 vezes no PIB per capita está associado a um acréscimo de aproximadamente 1,16 anos na expectativa de vida, controlando pelos demais fatores.
+
+A escolaridade média apresentou efeito positivo de 0,683 anos por ano adicional de escolaridade (IC 95%: 0,601 a 0,764). Países com população mais escolarizada tendem a apresentar maior longevidade, o que reflete o papel da educação no acesso a informações de saúde, melhores condições de trabalho e maior capacidade de utilização dos serviços de saúde disponíveis.\
+\
+O índice de composição de recursos de renda apresentou o maior coeficiente em magnitude absoluta entre os preditores contínuos: cada aumento de uma unidade nesse índice, que varia de 0 a 1, está associado a um aumento de 6,97 anos na expectativa de vida (IC 95%: 5,79 a 8,15). Como o índice sintetiza acesso a saúde, educação e renda, seu efeito expressivo reflete que melhorias estruturais amplas no desenvolvimento humano têm impacto considerável na longevidade média de um país.
+
+A variável **`thinness.5.9.years`**, que mede a prevalência de magreza em crianças de 5 a 9 anos, apresentou efeito negativo de 0,108 anos por ponto percentual adicional (IC 95%: −0,150 a −0,066), indicando que países com maior prevalência de desnutrição infantil tendem a apresentar menor expectativa de vida, mesmo após controlar pelos demais fatores.
+
+Por fim, o coeficiente associado ao status do país indica que, em média e controlando pelos demais preditores, países em desenvolvimento apresentam expectativa de vida 1,33 anos menor do que países desenvolvidos (IC 95%: −1,79 a −0,87). Esse resultado sugere que, mesmo após controlar por indicadores de saúde e econômicos, há um efeito residual associado ao nível de desenvolvimento que não é completamente capturado pelas demais variáveis do modelo.
+
+## Valores preditos vs observados
+
+A Figura \@ref(fig:figpredito) apresenta o gráfico de valores preditos pelo modelo contra os valores observados de expectativa de vida. A reta tracejada representa a linha de igualdade perfeita (coeficiente angular igual a 1 e intercepto igual a 0), de modo que pontos próximos a ela indicam boa capacidade preditiva do modelo. De forma geral, os pontos se distribuem próximos à reta de referência, confirmando o bom ajuste global. Observa-se, contudo, leve subestimação para países com expectativa de vida muito baixa (abaixo de 55 anos), o que sugere que esses casos, em sua maioria países em desenvolvimento com condições extremas, apresentam dinâmicas não completamente capturadas pelo modelo linear.
+
+```{r figpredito,fig.cap = "Valores preditos pelo modelo final versus valores observados de expectativa de vida ao nascer (em anos). A reta tracejada vermelha representa a concordância perfeita entre predito e observado. Pontos acima da reta indicam subestimação do modelo; pontos abaixo indicam superestimação. A concentração dos pontos próximos à reta evidencia bom ajuste global do modelo.",fig.align='center',fig.width=4,fig.height=3,  fig.pos="H"}
+# --- Gráfico predito vs observado ---
+
+dados_filtrados <- dados_filtrados %>%
+  mutate(predito = fitted(modelo_step),
+         observado = Life.expectancy)
+
+fig_predito <- ggplot(dados_filtrados, aes(x = predito, y = observado)) +
+  geom_point(alpha = 0.3, color = "steelblue") +
+  geom_abline(intercept = 0, slope = 1,
+              linetype = "dashed", color = "darkred", linewidth = 0.8) +
+  labs(x = "Valores preditos (anos)",
+       y = "Valores observados (anos)") +
+  theme_minimal()
+
+fig_predito
+
+```
+
+# Discussão
+
+Este estudo buscou identificar os principais determinantes da expectativa de vida ao nascer e verificar se esses efeitos diferem entre países desenvolvidos e em desenvolvimento. O modelo de regressão linear ajustado explicou aproximadamente 86,5% da variabilidade na expectativa de vida, com erro padrão residual de 3,57 anos, indicando boa capacidade preditiva para um fenômeno tão multidimensional quanto a longevidade humana.
+
+Os preditores mais expressivos foram o índice de composição de recursos de renda, a mortalidade adulta, a incidência de HIV/AIDS e a escolaridade média, que juntos capturam dimensões complementares da longevidade: sobrevivência da população em idade ativa, peso de uma epidemia que afeta desproporcionalmente países de baixa renda, e o papel do capital humano e do desenvolvimento estrutural na saúde das populações. O coeficiente expressivo do índice de composição de recursos de renda, em particular, reforça que intervenções isoladas tendem a ser menos eficazes do que abordagens integradas que atuem simultaneamente sobre educação, saúde e condições econômicas.
+
+Mesmo após controlar por todos os preditores do modelo, países em desenvolvimento apresentaram expectativa de vida cerca de 1,33 anos menor do que países desenvolvidos em condições equivalentes. Esse resultado indica que as desigualdades globais em longevidade não se explicam integralmente pelos indicadores observados, sugerindo a existência de um componente estrutural, possivelmente relacionado à qualidade dos sistemas de saúde, infraestrutura sanitária e estabilidade institucional, que permanece não capturado pelo modelo.
+
+Algumas limitações merecem atenção. A estrutura longitudinal dos dados, com múltiplos anos por país, implica correlação intrapaís ao longo do tempo que o modelo linear simples não leva em conta; uma extensão natural deste trabalho seria a adoção de modelos com efeitos mistos ou erros agrupados por país. A exclusão de variáveis com alto percentual de missings, como **`BMI`** e **`Population`**, pode ter omitido preditores relevantes. Por fim, por se tratar de um modelo observacional, as associações estimadas não devem ser interpretadas como relações causais.
+
+# Apêndice {.unnumbered}
+
+## Diagnóstico do Modelo
+
+A Figura \@ref(fig:fig-diag) apresenta os quatro gráficos padrão de diagnóstico do modelo final.
+
+O gráfico de resíduos versus valores ajustados não revela padrão sistemático evidente, com os resíduos distribuídos em torno de zero ao longo de toda a faixa de valores preditos, o que é consistente com a hipótese de linearidade. Contudo, observa-se leve aumento da dispersão dos resíduos para valores ajustados mais baixos, sugerindo indício de heterocedasticidade. Essa suspeita é confirmada pelo teste de Breusch-Pagan (BP = 148,22, gl = 9, p-valor \< 0,001), que rejeita a hipótese de homocedasticidade ao nível de 5%. Em termos práticos, isso significa que a variabilidade da expectativa de vida tende a ser maior em países com menor longevidade prevista — predominantemente países em desenvolvimento — o que é um comportamento esperado dado o contexto dos dados.
+
+O gráfico Normal Q-Q revela desvios nas caudas da distribuição dos resíduos, especialmente na cauda esquerda, indicando presença de valores mais extremos do que o esperado sob normalidade. O teste de Shapiro-Wilk confirma a rejeição da hipótese de normalidade (W = 0,976, p-valor \< 0,001). Ainda assim, dado o tamanho amostral elevado (n \> 2.000), o Teorema Central do Limite garante que as inferências baseadas nos coeficientes estimados permanecem válidas de forma aproximada, embora os intervalos de confiança devam ser interpretados com cautela.
+
+O gráfico de resíduos versus alavancagem, combinado com a distância de Cook, identificou 143 observações influentes, correspondendo a cerca de 6% da amostra. A investigação dessas observações revela um padrão coerente: correspondem predominantemente a países africanos subsaarianos em anos de condições extremas. O caso mais atípico é o Haiti em 2010, com expectativa de vida de 36,3 anos — ano do terremoto devastador que matou mais de 200 mil pessoas. Sierra Leone aparece repetidamente entre 2000 e 2007, período de pós-guerra civil com colapso dos serviços de saúde, e Zimbabwe e Zâmbia surgem nos anos 2000 a 2006, auge da epidemia de HIV/AIDS nessa região. Esses casos representam situações de choques humanitários agudos — guerras, epidemias e desastres naturais — cujos efeitos sobre a mortalidade são de natureza excepcional e dificilmente capturados por um modelo construído sobre padrões estruturais de longo prazo. A presença dessas observações influentes é, portanto, esperada e interpretável no contexto do problema, não constituindo evidência de falha do modelo, mas sim reflexo das limitações inerentes à modelagem linear de fenômenos com dinâmicas extremas.
+
+```{r fig-diag,fig.cap = "Gráficos de diagnóstico do modelo final. O painel superior esquerdo apresenta resíduos versus valores ajustados; o painel superior direito, o gráfico Normal Q-Q; o painel inferior esquerdo, o gráfico Scale-Location; e o painel inferior direito, resíduos versus alavancagem com curvas de distância de Cook.",fig.align='center',fig.width=6,fig.height=4,  fig.pos="H"}
+# --- Gráficos de diagnóstico ---
+
+par(mfrow = c(2, 2))
+plot(modelo_step)
+par(mfrow = c(1, 1))
+```
+
+```{r, echo=FALSE, results='hide'}
+# --- Teste de normalidade dos resíduos ---
+library(nortest)
+
+shapiro.test(residuals(modelo_step))
+
+# caso o n seja grande (n > 5000), use o teste de Lilliefors:
+# lillie.test(residuals(modelo_step))
+```
+
+```{r, echo=FALSE, results='hide'}
+# --- Teste de homocedasticidade (Breusch-Pagan) ---
+library(lmtest)
+
+bptest(modelo_step)
+```
+
+```{r, echo=FALSE, results='hide'}
+# --- Identificação de observações influentes ---
+influentes <- which(cooks.distance(modelo_step) > 4 / nrow(dados_filtrados))
+length(influentes)
+
+# Verificar quais países/anos são as observações influentes
+dados_filtrados[influentes, c("Country", "Year", "Life.expectancy")]
+```
+
+## Seleção de variáveis
+
+O procedimento stepwise bidirecional partiu do modelo completo com AIC inicial de 5864,17 e removeu **`thinness.1.19.years`** no primeiro passo, reduzindo o AIC para 5863,01. A partir desse ponto, nenhuma remoção ou inclusão adicional reduziu o AIC e o algoritmo convergiu. As variáveis **`infant.deaths`** e **`thinness.5.9.years`** permaneceram no modelo final apesar de contribuições individuais modestas, pois sua remoção elevaria o AIC acima do modelo atual. O $R^2$ ajustado do modelo completo (0,8647198) e do modelo final selecionado (0,8647292) são praticamente idênticos, confirmando que a remoção de **`thinness.1.19.years`** não implicou perda de poder explicativo. O modelo final é portanto preferível por ser mais parcimonioso.
+
+```{r, echo=FALSE, results='hide'}
+# --- Comparação entre modelo completo e modelo selecionado ---
+
+AIC(modelo_completo, modelo_step)
+
+# --- R² ajustado comparativo ---
+
+summary(modelo_completo)$adj.r.squared
+summary(modelo_step)$adj.r.squared
+```
+
+\newpage
+
+# Bibliografia {.unnumbered}
+
+<!-- não coloque nada aqui, será feito automaticamente se vc usar .bib e @ para citar referencias no texto, conforme ilustrado no template de exemplo-->
+
+<!-- para construir o .bib, use o cite https://www.doi2bib.org/, caso seja uma referência com DOI -->
+
+<!-- ao utilizar cada método, cite o autor e também referencie o pacote utilizado, no R, pegue o .bib usando citation("nomedopacote") -->
